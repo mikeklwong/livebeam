@@ -1,0 +1,16 @@
+import test,{after,before} from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+let child,dir;const port=19473,base=`http://localhost:${port}`;
+before(async()=>{dir=await mkdtemp(join(tmpdir(),'livebeam-test-'));child=spawn(process.execPath,['server/index.mjs'],{env:{...process.env,PORT:String(port),PUBLIC_URL:base,LIVEBEAM_DATA_DIR:dir,DISCORD_BOT_TOKEN:'',DISCORD_CLIENT_ID:'',DISCORD_CLIENT_SECRET:''},stdio:['ignore','pipe','pipe']});await new Promise((resolve,reject)=>{const timeout=setTimeout(()=>reject(Error('Server did not start')),10000);child.stdout.on('data',data=>{if(data.toString().includes('Livebeam ready')){clearTimeout(timeout);resolve()}});child.once('error',reject);child.once('exit',code=>{if(code)reject(Error('Server exited '+code))})})});
+after(async()=>{child?.kill();await new Promise(r=>child?.once('exit',r));await rm(dir,{recursive:true,force:true})});
+test('homepage, assets and health are served without exposing credentials',async()=>{assert.equal((await fetch(base)).status,200);assert.equal((await fetch(base+'/app.js')).status,200);const r=await fetch(base+'/api/health');const text=await r.text();assert.equal(r.status,200);assert.equal(JSON.parse(text).services['Discord bot'],false);assert.ok(!text.includes('DISCORD_BOT_TOKEN'))});
+test('live configuration requires authentication',async()=>{const r=await fetch(base+'/api/guilds/123456789012345678/config');assert.equal(r.status,401)});
+test('cross-origin writes are rejected',async()=>{const r=await fetch(base+'/api/logout',{method:'POST',headers:{Origin:'https://attacker.example','Content-Type':'application/json'},body:'{}'});assert.equal(r.status,403)});
+test('same-origin logout is allowed and expires the session cookie',async()=>{const r=await fetch(base+'/api/logout',{method:'POST',headers:{Origin:base,'Content-Type':'application/json'},body:'{}'});assert.equal(r.status,200);assert.ok(r.headers.get('set-cookie').includes('Max-Age=0'))});
+test('missing provider setup returns an actionable error',async()=>{const r=await fetch(base+'/api/connect');assert.equal(r.status,503);assert.match((await r.json()).error,/not configured/)});
+test('forged OAuth callbacks are rejected',async()=>{const r=await fetch(base+'/auth/discord/callback?state=forged&code=x');assert.equal(r.status,400)});
+test('environment and server source files are not served',async()=>{assert.equal((await fetch(base+'/.env')).status,404);assert.equal((await fetch(base+'/server/index.mjs')).status,404)});

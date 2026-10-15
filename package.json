@@ -1,0 +1,9 @@
+{
+  "name": "livebeam",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Streaming community tools for Discord",
+  "scripts": {"start": "node --env-file-if-exists=.env server/index.mjs", "dev": "node --env-file-if-exists=.env server/index.mjs", "test": "node --test test/*.test.mjs", "check": "node --check dist/app.js && node --check server/index.mjs && node --check server/engine.mjs"},
+  "engines": {"node": ">=22.13.0"}
+}

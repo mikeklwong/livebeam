@@ -88,4 +88,3 @@ node --test test/*.test.mjs
 ```
 
 Tests exercise filtering, deduplication, cooldowns, retry behavior, upload seeding, role ownership, schedule updates, webhook restrictions, HTTP routing, authentication, origin validation, OAuth rejection, and source-file isolation.
-
